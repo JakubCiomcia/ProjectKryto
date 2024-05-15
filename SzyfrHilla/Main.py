@@ -62,17 +62,50 @@ def hill_cipher_decrypt(cipher_text, key_matrix):
 
     return plain_text
 
-# Przykład użycia
+# Metoda Hill Climbing
+def hill_climbing_attack(cipher_text, iterations=1000):
+    best_key = None
+    best_score = 0
+
+    for _ in range(iterations):
+        # Generowanie losowego klucza
+        key_size = 2  # Rozmiar klucza
+        key_matrix = generate_random_key(key_size)
+
+        # Deszyfrowanie z użyciem bieżącego klucza
+        decrypted_text = hill_cipher_decrypt(cipher_text, key_matrix)
+
+        # Obliczanie oceny jako ilość poprawnie odszyfrowanych liter
+        score = sum(1 for a, b in zip(plain_text, decrypted_text) if a == b)
+
+        # Aktualizacja najlepszego klucza i wyniku
+        if score > best_score:
+            best_key = key_matrix
+            best_score = score
+
+    return best_key
+
 if __name__ == "__main__":
-    plain_text = "HELLO"
-    key_size = 2  # Rozmiar klucza
+    plain_text = "HO"
 
     # Generowanie losowego klucza
+    key_size = 2  # Rozmiar klucza
     key_matrix = generate_random_key(key_size)
-    print(f"Generated key matrix:\n{key_matrix}")
 
+    # Szyfrowanie tekstu
     cipher_text = hill_cipher_encrypt(plain_text, key_matrix)
-    print(f"Cipher text: {cipher_text}")
 
-    decrypted_text = hill_cipher_decrypt(cipher_text, key_matrix)
-    print(f"Decrypted text: {decrypted_text}")
+    # Atak Hill Climbing
+    best_key = hill_climbing_attack(cipher_text)
+
+    # Wypisanie informacji
+    print(f"Original text: {plain_text}")
+    print(f"Word encrypted: {cipher_text}")
+    print(f"Decrypted text with best key: {hill_cipher_decrypt(cipher_text, best_key)}")
+    print(f"Generated key matrix:\n{key_matrix}")
+    # Wypisanie macierzy do deszyfrowania
+    mod = 26
+    key_matrix_mod_inv = Matrix(key_matrix).inv_mod(mod)
+    key_matrix_mod_inv = np.array(key_matrix_mod_inv).astype(int)
+    print(f"Inverse key matrix for decryption:\n{key_matrix_mod_inv}")
+    print(f"Best key found during attack:\n{best_key}")
