@@ -1,77 +1,78 @@
 import numpy as np
+from sympy import Matrix
+import random
 
-# Funkcja do generowania macierzy klucza
-def generate_key_matrix(key):
-    n = int(len(key) ** 0.5)
-    key_matrix = np.array([ord(char) - ord('A') for char in key]).reshape(n, n)
-    return key_matrix
+alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
-# Funkcja do generowania macierzy dla tekstu do zaszyfrowania
-def generate_text_matrix(text, n):
-    text = text.upper().replace(" ", "").replace("\n", "")
-    # Wypełniamy brakujące miejsca tekstu zerami
-    while len(text) % n != 0:
-        text += 'Z'
-    text_matrix = np.array([ord(char) - ord('A') for char in text]).reshape(-1, n)
-    return text_matrix
+def char_to_num(c):
+    return alphabet.index(c)
 
-# Funkcja szyfrująca
-def encrypt(text, key):
-    n = int(len(key) ** 0.5)
-    key_matrix = generate_key_matrix(key)
-    text_matrix = generate_text_matrix(text, n)
-    encrypted_text = ""
-    for chunk in text_matrix:
-        encrypted_chunk = np.dot(chunk, key_matrix) % 26
-        encrypted_text += ''.join([chr(char + ord('A')) for char in encrypted_chunk])
-    return encrypted_text
+def num_to_char(n):
+    return alphabet[n]
 
-# Funkcja deszyfrująca
-def decrypt(text, key):
-    n = int(len(key) ** 0.5)
-    key_matrix = generate_key_matrix(key)
-    # Obliczamy odwrotność macierzy klucza modulo 26
-    det = int(round(np.linalg.det(key_matrix)))
-    det_inv = pow(det, -1, 26)
-    key_matrix_inv = (det_inv * np.round(det * np.linalg.inv(key_matrix)).astype(int)) % 26
-    text_matrix = generate_text_matrix(text, n)
-    decrypted_text = ""
-    for chunk in text_matrix:
-        decrypted_chunk = np.dot(chunk, key_matrix_inv) % 26
-        decrypted_text += ''.join([chr(char + ord('A')) for char in decrypted_chunk])
-    return decrypted_text
+# Funkcja do generowania losowej macierzy klucza o wymiarze n*n
+def generate_random_key(n):
+    while True:
+        key_matrix = np.random.randint(0, 26, size=(n, n))
+        det = int(np.round(np.linalg.det(key_matrix)))
+        if np.gcd(det, 26) == 1:  # Determinant must be coprime with 26
+            return key_matrix
 
-def generate_random_key(key_size):
-    # Sprawdzenie, czy rozmiar klucza jest kwadratem liczby całkowitej
-    if not np.sqrt(key_size).is_integer():
-        raise ValueError("Rozmiar klucza musi być kwadratem liczby całkowitej.")
+# Funkcja szyfrowania
+def hill_cipher_encrypt(plain_text, key_matrix):
+    n = key_matrix.shape[0]
+    cipher_text = ''
 
-    # Generowanie losowej macierzy kwadratowej o rozmiarze key_size
-    random_matrix = np.random.randint(0, 26, size=(key_size, key_size))
+    # Podzielenie tekstu na bloki i konwersja na liczby
+    blocks = [plain_text[i:i + n] for i in range(0, len(plain_text), n)]
+    for block in blocks:
+        block = block.upper()
+        while len(block) < n:
+            block += 'X'  # Dopełnianie bloków literą X
+        block_vector = np.array([char_to_num(c) for c in block])
 
-    # Sprawdzenie, czy macierz jest odwracalna modulo 26
-    det = int(np.round(np.linalg.det(random_matrix)))
-    det_inv = pow(det, -1, 26)  # Odwrócenie wyznacznika modulo 26
-    if det == 0 or np.gcd(det, 26) != 1:
-        raise ValueError("Nie można wygenerować klucza, ponieważ macierz nie jest odwracalna modulo 26.")
+        # Mnożenie macierzy
+        cipher_vector = np.dot(key_matrix, block_vector) % 26
+        cipher_text += ''.join(num_to_char(num) for num in cipher_vector)
 
-    # Zwracanie wygenerowanego losowego klucza
-    return random_matrix
+    return cipher_text
 
-# Przykładowe użycie:
-try:
-    key_size = 3  # Rozmiar klucza (np. dla szyfru Hilla 3x3)
-    key = generate_random_key(key_size)
-    print("Wygenerowany losowy klucz:")
-    print(key)
-except ValueError as e:
-    print(e)
-# Przykładowe użycie
-key = "GYBNQKURP"
-plaintext = "HELLOO"
-encrypted_text = encrypt(plaintext, key)
-print("Zaszyfrowany tekst:", encrypted_text)
-decrypted_text = decrypt(encrypted_text, key)
+# Funkcja deszyfrowania
+def hill_cipher_decrypt(cipher_text, key_matrix):
+    n = key_matrix.shape[0]
+    plain_text = ''
 
-print("Odszyfrowany tekst:", decrypted_text)
+    # Inwersja macierzy klucza modulo 26
+    mod = 26
+    key_matrix_mod_inv = Matrix(key_matrix).inv_mod(mod)
+    key_matrix_mod_inv = np.array(key_matrix_mod_inv).astype(int)
 
+    # Podzielenie tekstu na bloki i konwersja na liczby
+    blocks = [cipher_text[i:i + n] for i in range(0, len(cipher_text), n)]
+    for block in blocks:
+        block = block.upper()
+        block_vector = np.array([char_to_num(c) for c in block])
+
+        # Mnożenie macierzy
+        plain_vector = np.dot(key_matrix_mod_inv, block_vector) % 26
+        plain_text += ''.join(num_to_char(num) for num in plain_vector)
+
+    # Usunięcie nadmiarowych 'X' na końcu tekstu
+    plain_text = plain_text.rstrip('X')
+
+    return plain_text
+
+# Przykład użycia
+if __name__ == "__main__":
+    plain_text = "HELLO"
+    key_size = 2  # Rozmiar klucza
+
+    # Generowanie losowego klucza
+    key_matrix = generate_random_key(key_size)
+    print(f"Generated key matrix:\n{key_matrix}")
+
+    cipher_text = hill_cipher_encrypt(plain_text, key_matrix)
+    print(f"Cipher text: {cipher_text}")
+
+    decrypted_text = hill_cipher_decrypt(cipher_text, key_matrix)
+    print(f"Decrypted text: {decrypted_text}")
