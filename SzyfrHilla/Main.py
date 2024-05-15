@@ -1,6 +1,7 @@
+import time
+
 import numpy as np
 from sympy import Matrix
-import random
 
 alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
@@ -22,7 +23,6 @@ def generate_random_key(n):
 def hill_cipher_encrypt(plain_text, key_matrix):
     n = key_matrix.shape[0]
     cipher_text = ''
-
     # Podzielenie tekstu na bloki i konwersja na liczby
     blocks = [plain_text[i:i + n] for i in range(0, len(plain_text), n)]
     for block in blocks:
@@ -63,13 +63,16 @@ def hill_cipher_decrypt(cipher_text, key_matrix):
     return plain_text
 
 # Metoda Hill Climbing
-def hill_climbing_attack(cipher_text, iterations=1000):
+def hill_climbing_attack(cipher_text, iterations=10000000):
+
     best_key = None
     best_score = 0
-
-    for _ in range(iterations):
+    i = 0
+    while i < iterations:  # Pętla będzie działać dopóki i < iterations
+        i += 1
+        # print(i)
         # Generowanie losowego klucza
-        key_size = 2  # Rozmiar klucza
+        key_size = 4  # Rozmiar klucza
         key_matrix = generate_random_key(key_size)
 
         # Deszyfrowanie z użyciem bieżącego klucza
@@ -82,14 +85,19 @@ def hill_climbing_attack(cipher_text, iterations=1000):
         if score > best_score:
             best_key = key_matrix
             best_score = score
-
+        if best_score == key_size:
+            print("Ilość iteracji: " + str(i))
+            return best_key
+            break
     return best_key
 
-if __name__ == "__main__":
-    plain_text = "HO"
 
+if __name__ == "__main__":
+    plain_text = "HOM"
+
+    start_time = time.time()
     # Generowanie losowego klucza
-    key_size = 2  # Rozmiar klucza
+    key_size = 3  # Rozmiar klucza
     key_matrix = generate_random_key(key_size)
 
     # Szyfrowanie tekstu
@@ -101,6 +109,11 @@ if __name__ == "__main__":
     # Wypisanie informacji
     print(f"Original text: {plain_text}")
     print(f"Word encrypted: {cipher_text}")
+
+    print("__________________________________")
+    print(f"Best key found during attack:\n{best_key}")
+    print("__________________________________")
+
     print(f"Decrypted text with best key: {hill_cipher_decrypt(cipher_text, best_key)}")
     print(f"Generated key matrix:\n{key_matrix}")
     # Wypisanie macierzy do deszyfrowania
@@ -108,4 +121,6 @@ if __name__ == "__main__":
     key_matrix_mod_inv = Matrix(key_matrix).inv_mod(mod)
     key_matrix_mod_inv = np.array(key_matrix_mod_inv).astype(int)
     print(f"Inverse key matrix for decryption:\n{key_matrix_mod_inv}")
-    print(f"Best key found during attack:\n{best_key}")
+    end_time = time.time()
+    duration = end_time - start_time
+    print("Czas trwania: " + str(round(duration, 4)))
