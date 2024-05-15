@@ -71,7 +71,7 @@ def hill_climbing_attack(cipher_text, iterations=10000000):
         i += 1
         # print(i)
         # Generowanie losowego klucza
-        key_size = 3  # Rozmiar klucza
+        key_size = 4  # Rozmiar klucza
         key_matrix = generate_random_key(key_size)
         # Deszyfrowanie z użyciem bieżącego klucza
         decrypted_text = hill_cipher_decrypt(cipher_text, key_matrix)
@@ -90,11 +90,11 @@ def hill_climbing_attack(cipher_text, iterations=10000000):
 
 
 if __name__ == "__main__":
-    plain_text = "HOH"
+    plain_text = "HOHO"
 
     start_time = time.time()
     # Generowanie losowego klucza
-    key_size = 3  # Rozmiar klucza
+    key_size = 4  # Rozmiar klucza
     key_matrix = generate_random_key(key_size)
 
     # Szyfrowanie tekstu

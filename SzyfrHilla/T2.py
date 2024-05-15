@@ -67,34 +67,39 @@ def hill_climbing_attack(cipher_text, iterations=10000000):
     best_key = None
     best_score = 0
     i = 0
-    while i < iterations:  # Pętla będzie działać dopóki i < iterations
+    # Przechowujemy klucze i ich oceny, aby uniknąć powtarzających się obliczeń
+    key_scores = {}
+    while i < iterations:
         i += 1
-        # print(i)
-        # Generowanie losowego klucza
-        key_size = 3  # Rozmiar klucza
-        key_matrix = generate_random_key(key_size)
-        # Deszyfrowanie z użyciem bieżącego klucza
-        decrypted_text = hill_cipher_decrypt(cipher_text, key_matrix)
-        # Obliczanie oceny jako ilość poprawnie odszyfrowanych liter
-        score = sum(1 for a, b in zip(plain_text, decrypted_text) if a == b)
+        # Generowanie losowego klucza lub pobranie go z pamięci podręcznej
+        if i not in key_scores:
+            key_size = 4  # Rozmiar klucza
+            key_matrix = generate_random_key(key_size)
+            decrypted_text = hill_cipher_decrypt(cipher_text, key_matrix)
+            score = sum(1 for a, b in zip(plain_text, decrypted_text) if a == b)
+            key_scores[i] = (key_matrix, score)
+        else:
+            key_matrix, score = key_scores[i]
 
         # Aktualizacja najlepszego klucza i wyniku
         if score > best_score:
             best_key = key_matrix
             best_score = score
+
+        # Przerwanie pętli, jeśli znaleziono poprawny klucz
         if best_score == len(cipher_text):
             print("Ilość iteracji: " + str(i))
             return best_key
-            break
+
     return best_key
 
 
 if __name__ == "__main__":
-    plain_text = "HOH"
+    plain_text = "HOHO"
 
     start_time = time.time()
     # Generowanie losowego klucza
-    key_size = 3  # Rozmiar klucza
+    key_size = 4  # Rozmiar klucza
     key_matrix = generate_random_key(key_size)
 
     # Szyfrowanie tekstu
