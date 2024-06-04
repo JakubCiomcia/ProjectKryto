@@ -7,7 +7,7 @@ from ngram_score import NgramScore
 
 alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 # Tworzenie instancji Ngram_score
-ngram_score = NgramScore('english_bigrams.txt')  # Zamień 'plik_z_ngramami.txt' na ścieżkę do Twojego pliku z n-gramami
+ngram_score = NgramScore('english_trigrams.txt')  # Zamień 'plik_z_ngramami.txt' na ścieżkę do Twojego pliku z n-gramami
 
 def char_to_num(c):
     return alphabet.index(c)
@@ -180,8 +180,8 @@ if __name__ == "__main__":
 
     print("__________________________________")
     # Wypisanie macierzy do deszyfrowania
-    mod = 26
-    key_matrix_mod_inv = Matrix(key_matrix).inv_mod(mod)
-    key_matrix_mod_inv = np.array(key_matrix_mod_inv).astype(int)
-    print(f"Inverse key matrix for decryption:\n{key_matrix_mod_inv}")
-    print("__________________________________")
+    # mod = 26
+    # key_matrix_mod_inv = Matrix(key_matrix).inv_mod(mod)
+    # key_matrix_mod_inv = np.array(key_matrix_mod_inv).astype(int)
+    # print(f"Inverse key matrix for decryption:\n{key_matrix_mod_inv}")
+    # print("__________________________________")
