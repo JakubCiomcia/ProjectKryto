@@ -7,7 +7,7 @@ from ngram_score import NgramScore
 
 alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 # Tworzenie instancji Ngram_score
-ngram_score = NgramScore('english_trigrams.txt')  # Zamień 'plik_z_ngramami.txt' na ścieżkę do Twojego pliku z n-gramami
+ngram_score = NgramScore('english_bigrams.txt')  # Zamień 'plik_z_ngramami.txt' na ścieżkę do Twojego pliku z n-gramami
 
 def char_to_num(c):
     return alphabet.index(c)
@@ -71,51 +71,50 @@ def hill_cipher_decrypt(cipher_text, key_matrix):
 import time
 import numpy as np
 
-def changeKey(old_key, max_attempts=10, num_no_improve=5):
-    mutation_history = np.zeros_like(old_key)
-    no_improve = 0
-    for _ in range(max_attempts):
-        new_key = old_key.copy()
-        if no_improve >= num_no_improve:  # Jeśli klucz nie poprawia się przez pewien czas, zwiększamy liczbę permutacji
-            num_changes = 5
-        else:
-            num_changes = 3
-        for _ in range(num_changes):
-            mutation_type = np.random.randint(0, key_size)
-            if mutation_type == 0:
-                row, col = np.unravel_index(np.argmax(np.abs(new_key)), new_key.shape)
-                new_key[row, col] = np.random.randint(0, 26)
-                mutation_history[row, col] += 1
-            elif mutation_type == 1:
-                row1 = np.random.randint(0, key_size)
-                row2 = np.random.randint(0, key_size)
-                new_key[[row1, row2]] = new_key[[row2, row1]]
-            else:
-                col1 = np.random.randint(0, key_size)
-                col2 = np.random.randint(0, key_size)
-                new_key[:, [col1, col2]] = new_key[:, [col2, col1]]
-        det = int(np.round(np.linalg.det(new_key)))
-        if np.gcd(det, 26) == 1:
-            return new_key, 0  # Resetujemy licznik no_improve
-        no_improve += 1  # Zwiększamy licznik no_improve
-    return old_key, no_improve
+import numpy as np
 
+
+def changeKey(old_key, mutation_probabilities):
+    mutation_history = np.zeros_like(old_key)
+    new_key = old_key.copy()
+    num_changes = 3
+    for _ in range(num_changes):
+        mutation_type = np.random.choice(len(mutation_probabilities), p=mutation_probabilities)
+        if mutation_type == 0:
+            # Zmiana pojedynczej wartości w macierzy
+            row, col = np.random.randint(0, new_key.shape[0]), np.random.randint(0, new_key.shape[1])
+            new_key[row, col] = np.random.randint(0, 26)
+            mutation_history[row, col] += 1
+        elif mutation_type == 1:
+            # Zamiana dwóch wierszy
+            row1, row2 = np.random.choice(new_key.shape[0], 2, replace=False)
+            new_key[[row1, row2]] = new_key[[row2, row1]]
+        else:
+            # Zamiana dwóch kolumn
+            col1, col2 = np.random.choice(new_key.shape[1], 2, replace=False)
+            new_key[:, [col1, col2]] = new_key[:, [col2, col1]]
+
+    det = int(np.round(np.linalg.det(new_key)))
+    if np.gcd(det, 26) == 1:
+        return new_key
+    return old_key
+
+
+mutation_probabilities = [0.70, 0.20, 0.10]  # Zaktualizowane prawdopodobieństwa dla trzech typów mutacji
+
+
+# Testowanie zmodyfikowanej funkcji hill_climbing_attack z nową changeKey
 def hill_climbing_attack(cipher_text, Ngram_score, time_limit=30):
     old_key = generate_random_key(key_size)
     old_value = Ngram_score.score(hill_cipher_decrypt(cipher_text, old_key))
-    no_improve = 0  # Dodajemy licznik no_improve
     start_time = time.time()
-    while time.time() - start_time < time_limit and old_value != 0:
-        new_key, no_improve = changeKey(old_key, num_no_improve=no_improve)  # Przekazujemy licznik no_improve do funkcji changeKey
+    while time.time() - start_time < time_limit:
+        new_key = changeKey(old_key, mutation_probabilities)
         new_value = Ngram_score.score(hill_cipher_decrypt(cipher_text, new_key))
         if new_value > old_value:
             old_key = new_key
             old_value = new_value
-            print(old_value, hill_cipher_decrypt(cipher_text[:3*key_size], old_key),
-                  '\n', old_key)
-            no_improve = 0  # Resetujemy licznik no_improve
-        else:
-            no_improve += 1  # Zwiększamy licznik no_improve
+            print(old_value, hill_cipher_decrypt(cipher_text[:3 * key_size], old_key), '\n', old_key)
         if old_value == Ngram_score.score(cipher_text):
             print("Time before breaking the key: " + str(time.time() - start_time) + "\n")
             return old_key
