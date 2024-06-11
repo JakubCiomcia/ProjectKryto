@@ -1,5 +1,5 @@
 import time
-import random
+from random import random
 
 import numpy as np
 from sympy import Matrix
@@ -10,12 +10,14 @@ alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 # Tworzenie instancji Ngram_score
 ngram_score = NgramScore('english_bigrams.txt')  # Zamień 'plik_z_ngramami.txt' na ścieżkę do Twojego pliku z n-gramami
 
+
 def char_to_num(c):
     return alphabet.index(c)
 
 
 def num_to_char(n):
     return alphabet[n]
+
 
 # Funkcja do generowania losowej macierzy klucza o wymiarze n*n
 def generate_random_key(n):
@@ -24,6 +26,7 @@ def generate_random_key(n):
         det = int(np.round(np.linalg.det(key_matrix)))
         if np.gcd(det, 26) == 1:  # # Determinanta musi być 1mod26
             return key_matrix
+
 
 # Funkcja szyfrowania
 def hill_cipher_encrypt(plain_text, key_matrix):
@@ -42,6 +45,7 @@ def hill_cipher_encrypt(plain_text, key_matrix):
         cipher_text += ''.join(num_to_char(num) for num in cipher_vector)
 
     return cipher_text
+
 
 # Funkcja deszyfrowania
 def hill_cipher_decrypt(cipher_text, key_matrix):
@@ -69,47 +73,61 @@ def hill_cipher_decrypt(cipher_text, key_matrix):
     return plain_text
 
 
-def changeKey(old_key, mutation_probabilities):
+# Metoda Hill Climbing
+import time
+import numpy as np
+
+
+def changeKey(old_key, max_attempts=10, num_no_improve=5):
+    copy_key = old_key
     mutation_history = np.zeros_like(old_key)
-    new_key = old_key.copy()
-    num_changes = 3
-    for _ in range(num_changes):
-        mutation_type = np.random.choice(len(mutation_probabilities), p=mutation_probabilities)
-        if mutation_type == 0:
-            # Zmiana pojedynczej wartości w macierzy
-            row, col = np.random.randint(0, new_key.shape[0]), np.random.randint(0, new_key.shape[1])
-            new_key[row, col] = np.random.randint(0, 26)
-            mutation_history[row, col] += 1
-        elif mutation_type == 1:
-            # Zamiana dwóch wierszy
-            row1, row2 = np.random.choice(new_key.shape[0], 2, replace=False)
-            new_key[[row1, row2]] = new_key[[row2, row1]]
+    no_improve = 0
+    for _ in range(max_attempts):
+        new_key = old_key.copy()
+        if no_improve >= num_no_improve:  # Jeśli klucz nie poprawia się przez pewien czas, zwiększamy liczbę permutacji
+            num_changes = 5  # Usunąć ten fragment
         else:
-            # Zamiana dwóch kolumn
-            col1, col2 = np.random.choice(new_key.shape[1], 2, replace=False)
-            new_key[:, [col1, col2]] = new_key[:, [col2, col1]]
+            num_changes = 3
+            r = random.random()
+            r_probs = [0.8, 0.1, 0.1]
+        for _ in range(num_changes):
+            mutation_type = np.random.randint(0, key_size)
+            if r < sum[r_probs[0]]:
+                row, col = np.unravel_index(np.argmax(np.abs(new_key)), new_key.shape)  # Zamienić na zamianę losową
+                new_key[row, col] = np.random.randint(0, 26)  # Zapewnić podział 80% / 20% szukać na teamsie
+                mutation_history[row, col] += 1  # poprawić przejście tył przód
+            elif r < sum[r_probs[1]]:
+                row1 = np.random.randint(0, key_size)
+                row2 = np.random.randint(0, key_size)
+                new_key[[row1, row2]] = new_key[[row2, row1]]
+            elif r < sum[r_probs[2]]:
+                col1 = np.random.randint(0, key_size)
+                col2 = np.random.randint(0, key_size)
+                new_key[:, [col1, col2]] = new_key[:, [col2, col1]]
+        det = int(np.round(np.linalg.det(new_key)))
+        if np.gcd(det, 26) == 1:
+            return new_key, 0  # Resetujemy licznik no_improve
+        # no_improve += 1  # Zwiększamy licznik no_improve  // To też jest do wywalenia bo mówił że to i tak nie ma sensu wzgledem ngram score
+    return old_key, no_improve
 
-    det = int(np.round(np.linalg.det(new_key)))
-    if np.gcd(det, 26) == 1:
-        return new_key
-    return old_key
 
-
-mutation_probabilities = [0.80, 0.10, 0.10]  # Zaktualizowane prawdopodobieństwa dla trzech typów mutacji
-
-
-# Testowanie zmodyfikowanej funkcji hill_climbing_attack z nową changeKey
 def hill_climbing_attack(cipher_text, Ngram_score, time_limit=30):
     old_key = generate_random_key(key_size)
     old_value = Ngram_score.score(hill_cipher_decrypt(cipher_text, old_key))
+    no_improve = 0  # Dodajemy licznik no_improve
     start_time = time.time()
-    while time.time() - start_time < time_limit:
-        new_key = changeKey(old_key, mutation_probabilities)
+    while time.time() - start_time < time_limit and old_value != 0:
+        new_key, no_improve = changeKey(old_key,
+                                        num_no_improve=no_improve)  # Przekazujemy licznik no_improve do funkcji changeKey
         new_value = Ngram_score.score(hill_cipher_decrypt(cipher_text, new_key))
         if new_value > old_value:
             old_key = new_key
             old_value = new_value
-            print(old_value, hill_cipher_decrypt(cipher_text[:3 * key_size], old_key), '\n', old_key)
+            print(old_value, hill_cipher_decrypt(cipher_text[:3 * key_size], old_key),
+                  '\n', old_key)
+            no_improve = 0  # Resetujemy licznik no_improve
+        else:
+            no_improve += 1  # Zwiększamy licznik no_improve
         if old_value == Ngram_score.score(cipher_text):
             print("Time before breaking the key: " + str(time.time() - start_time) + "\n")
             return old_key
@@ -118,7 +136,6 @@ def hill_climbing_attack(cipher_text, Ngram_score, time_limit=30):
 
 
 if __name__ == "__main__":
-
     text = "No amount of evidence will ever persuade an idiot. " \
            + "When I was seventeen, my father was so stupid, " \
            + "I didnt want to be seen with him in public. " \
@@ -146,7 +163,7 @@ if __name__ == "__main__":
 
     start_time = time.time()
     # Generowanie losowego klucza
-    key_size = 3  # Rozmiar klucza
+    key_size = 2  # Rozmiar klucza
     key_matrix = generate_random_key(key_size)
 
     # Szyfrowanie tekstu
