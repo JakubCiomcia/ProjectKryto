@@ -52,7 +52,7 @@ def hill_cipher_decrypt(cipher_text, key_matrix):
 def changeKey(old_key):
     mutation_history = np.zeros_like(old_key)
     new_key = old_key.copy()
-    num_changes = 3
+    num_changes = 1
 
     mutation_probabilities = [0.70, 0.00, 0.03, 0.24, 0.03]
 
@@ -82,13 +82,15 @@ def changeKey(old_key):
         return new_key
     return old_key
 
-def AcceptanceFunction(valueOld, valueNew, temp):
-    if random.random() < math.exp(-3 * (valueOld - valueNew) / temp):
+def AcceptanceFunction(valueOld, valueNew, temp, multiplier, worse_prob):
+    if random.random() < math.exp(multiplier * (valueOld - valueNew) / temp):
+        return True
+    elif random.random() < worse_prob:
         return True
     else:
         return False
 
-def SimAnnealing_self_adjusting(ct, lenk, tempDeltaBase=-0.01):
+def SimAnnealing_self_adjusting(ct, lenk, time_limit=120, tempDeltaBase=-0.005, acceptance_multiplier=-2.5, max_attempts=5000, worse_accept_prob_start=0.4, worse_accept_prob_end=0.3):
     t1 = time.time()
     starttemp = 100
     endtemp = 1
@@ -110,24 +112,31 @@ def SimAnnealing_self_adjusting(ct, lenk, tempDeltaBase=-0.01):
 
     j, k, j_list, k_list, restarts = 0, 0, [], [], max(1, lenk - 10)
     m = 0
+    consecutive_attempts = 0
 
     def sign(a):
         return bool(a > 0) - bool(a < 0)
 
-    while temp >= endtemp:
+    while temp >= endtemp and (time.time() - t1) < time_limit:
         keyNew = changeKey(keyOld)
         scoreNew = ngram_score.score(hill_cipher_decrypt(ct, keyNew))
-        if scoreNew > scoreOld:
+        worse_prob = worse_accept_prob_start + (worse_accept_prob_end - worse_accept_prob_start) * (temp - endtemp) / (starttemp - endtemp)
+
+        if scoreNew > scoreOld or AcceptanceFunction(scoreOld, scoreNew, temp, acceptance_multiplier, worse_prob):
             keyOld, scoreOld = keyNew, scoreNew
             k += 1
+            consecutive_attempts = 0
             if scoreOld > scoreMax:
                 j_list.append(j)
                 k_list.append(k)
                 print(f'{scoreOld},\t{round(time.time() - t1, 2)} sec,\t temp = {round(temp, 2)},\t j={j}, k={k}, \t{len(keyOld)}')
                 keyMax, scoreMax, j, k = keyOld, scoreOld, 0, 0
-        elif AcceptanceFunction(scoreOld, scoreNew, temp):
-            keyOld, scoreOld = keyNew, scoreNew
-            k += 1
+        else:
+            consecutive_attempts += 1
+
+        if consecutive_attempts > max_attempts:
+            keyOld, scoreOld, consecutive_attempts = keyMax, scoreMax, 0
+
         j += 1
         if j > 500 or k > 30:
             j_list.append(j)
@@ -136,37 +145,24 @@ def SimAnnealing_self_adjusting(ct, lenk, tempDeltaBase=-0.01):
         temp += tempDelta
         iters += 1
 
-        if iters%10000 == 0:
-            pm = progressMarker( scoreMax)
-            if 2 <= temp < 2 + (-1)/tempDeltaBase and pm < 0:
-                tempDelta = max( -0.0001, tempDeltaBase / (1 + (0.1-pm)*lenk) )
-            elif temp < 2 and pm < 0 and restarts > 0:
-                    temp = 100
-                    tempDelta = tempDeltaBase
-                    restarts -= 1
-            else:
-                if 0.3 < pm:
-                    tempDelta =  tempDeltaBase * ( (pm-0.2)/0.1)
-                elif pm < 0.1:
-                    tempDelta = tempDeltaBase / (1 + (0.1-pm)*lenk)
-                else:
-                    tempDelta = tempDeltaBase
-            print( f'<{scoreMax}>,\t pm = {round(pm,3)},\t temp = {round(temp,2)},\t tempDelta =  {round(tempDelta,6)},\t j={j}, k={k} ')
-
         if iters % 100 == 0:
             pm = progressMarker(scoreMax)
             pm = pm + 0.01 * (m - lenk)
             pm = sign(pm) * max(0.01, abs(pm))
             tempDelta = tempDeltaBase * (max(m / lenk, 1) + pm * 100)
+
             if iters % max(1000, 100 * round((lenk - 6) ** 4 * distance2solution(scoreMax))) == 0:
                 m += 1
-        if iters % 50000 == 0:
+                tempDelta = tempDeltaBase * (max(m / lenk, 1) + pm * 100)
+
+        if iters % 4000 == 0:
             print(f'\t<{round(scoreMax, 2)}>,\t{round(time.time() - t1, 2)} sec,\t temp = {round(temp, 2)},\t j={j}, k={k},\t pm = {round(pm, 3)},\t m={m}, \t{len(keyOld)}')
 
     print(f'Obliczano przez {round(time.time() - t1, 2)} sekund,\t(iters={iters},\tm={m})')
     print(f'j_list.mean = {sum(j_list) / len(j_list)},\t j_list.max = {max(j_list)}')
     print(f'k_list.mean = {sum(k_list) / len(k_list)},\t jk_list.max = {max(k_list)}')
     return [scoreMax, keyMax, hill_cipher_decrypt(ct, keyMax)]
+
 
 if __name__ == "__main__":
     text = "No amount of evidence will ever persuade an idiot. " \
@@ -198,6 +194,10 @@ if __name__ == "__main__":
     key_size = 3
     key_matrix = generate_random_key(key_size)
     cipher_text = hill_cipher_encrypt(plain_text, key_matrix)
+
+    best_score = -float('inf')
+    best_result = None
+
     best_key = SimAnnealing_self_adjusting(cipher_text, key_size)[1]
 
     print("__________________________________")
