@@ -1,3 +1,4 @@
+import math
 import time
 import random
 import numpy as np
@@ -7,14 +8,11 @@ from ngram_score import NgramScore
 alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 ngram_score = NgramScore('english_bigrams.txt')
 
-
 def char_to_num(c):
     return alphabet.index(c)
 
-
 def num_to_char(n):
     return alphabet[n]
-
 
 def generate_random_key(n):
     while True:
@@ -22,7 +20,6 @@ def generate_random_key(n):
         det = int(np.round(np.linalg.det(key_matrix)))
         if np.gcd(det, 26) == 1:
             return key_matrix
-
 
 def hill_cipher_encrypt(plain_text, key_matrix):
     n = key_matrix.shape[0]
@@ -36,7 +33,6 @@ def hill_cipher_encrypt(plain_text, key_matrix):
         cipher_vector = np.dot(key_matrix, block_vector) % 26
         cipher_text += ''.join(num_to_char(num) for num in cipher_vector)
     return cipher_text
-
 
 def hill_cipher_decrypt(cipher_text, key_matrix):
     n = key_matrix.shape[0]
@@ -53,17 +49,10 @@ def hill_cipher_decrypt(cipher_text, key_matrix):
     plain_text = plain_text.rstrip('X')
     return plain_text
 
-
-
 def changeKey(old_key):
     mutation_history = np.zeros_like(old_key)
     new_key = old_key.copy()
-    num_changes = 3
-
-    # Dynamiczne dostosowanie prawdopodobieństw mutacji
-    # success_rate = np.mean(mutation_history) / np.max(mutation_history) if np.max(mutation_history) != 0 else 0
-    # mutation_probabilities = [prob * (1 - adaptive_factor * success_rate) for prob in mutation_probabilities]
-    # mutation_probabilities = [prob / sum(mutation_probabilities) for prob in mutation_probabilities]
+    num_changes = 1
 
     mutation_probabilities = [0.70, 0.00, 0.03, 0.24, 0.03]
 
@@ -80,13 +69,9 @@ def changeKey(old_key):
         elif r < sum(mutation_probabilities[:2]):
             row1, row2 = np.random.choice(new_key.shape[0], 2, replace=False)
             new_key[[row1, row2]] = new_key[[row2, row1]]
-        # elif r < sum(mutation_probabilities[:3]):
-        #     row = np.random.choice(new_key.shape[0])
-        #     change = np.random.choice([-2, 2])  # Wybiera -2 lub 2 losowo
-        #     new_key[row] += change
         elif r < sum(mutation_probabilities[:3]):
             row = np.random.choice(new_key.shape[0])
-            changes = np.random.choice([-3, -2, -1, -1, 0,0,1,1,2,3], size=new_key.shape[1])  # Wybiera -2 lub 2 losowo dla każdego elementu w wierszu
+            changes = np.random.choice([-3, -2, -1, -1, 0, 0, 1, 1, 2, 3], size=new_key.shape[1])
             new_key[row] += changes
         else:
             col1, col2 = np.random.choice(new_key.shape[1], 2, replace=False)
@@ -97,44 +82,87 @@ def changeKey(old_key):
         return new_key
     return old_key
 
+def AcceptanceFunction(valueOld, valueNew, temp, multiplier, worse_prob):
+    if random.random() < math.exp(multiplier * (valueOld - valueNew) / temp):
+        return True
+    elif random.random() < worse_prob:
+        return True
+    else:
+        return False
 
-def hill_climbing_attack(cipher_text, Ngram_score, time_limit=120, reset_limit=4000):
-    old_key = generate_random_key(key_size)
-    old_value = Ngram_score.score(hill_cipher_decrypt(cipher_text, old_key))
-    start_time = time.time()
-    attempts_since_last_improvement = 0
-    best_key = old_key
-    best_value = old_value
+def SimAnnealing_self_adjusting(ct, lenk, time_limit=120, tempDeltaBase=-0.001, acceptance_multiplier=-3, max_attempts=1000, worse_accept_prob_start=0.6, worse_accept_prob_end=0.3):
+    t1 = time.time()
+    starttemp = 100
+    endtemp = 1
+    temp = starttemp
+    tempDelta = tempDeltaBase
 
-    while time.time() - start_time < time_limit:
+    keyOld = generate_random_key(lenk)
+    scoreOld = ngram_score.score(hill_cipher_decrypt(ct, keyOld))
+    keyMax, scoreMax = list(keyOld), float(scoreOld)
 
-        if attempts_since_last_improvement >= reset_limit:
-            old_key = generate_random_key(key_size)
-            old_value = Ngram_score.score(hill_cipher_decrypt(cipher_text, old_key))
-            attempts_since_last_improvement = 0
-            print("Resetting key after", reset_limit, "attempts")
+    ctScore, iters = ngram_score.score(ct), 0
 
-        new_key = changeKey(old_key)
-        new_value = Ngram_score.score(hill_cipher_decrypt(cipher_text, new_key))
+    def distance2solution(currScore, lenText=len(ct), ctScore=ctScore):
+        return (-2.35 - currScore / lenText) / (-2.35 - ctScore / lenText)
 
-        if new_value > old_value:
-            old_key = new_key
-            old_value = new_value
-            attempts_since_last_improvement = 0
-            if old_value > best_value:
-                best_key = old_key
-                best_value = old_value
-            print(old_value, hill_cipher_decrypt(cipher_text[:3 * key_size], old_key), '\n', old_key)
+    def progressMarker(currScore):
+        pm = (temp / starttemp) - distance2solution(currScore)
+        return pm
+
+    j, k, j_list, k_list, restarts = 0, 0, [], [], max(1, lenk - 10)
+    m = 0
+    consecutive_attempts = 0
+
+    def sign(a):
+        return bool(a > 0) - bool(a < 0)
+
+    while temp >= endtemp and (time.time() - t1) < time_limit:
+        keyNew = changeKey(keyOld)
+        scoreNew = ngram_score.score(hill_cipher_decrypt(ct, keyNew))
+        worse_prob = worse_accept_prob_start + (worse_accept_prob_end - worse_accept_prob_start) * (temp - endtemp) / (starttemp - endtemp)
+
+        if scoreNew > scoreOld:
+            keyOld, scoreOld = keyNew, scoreNew
+            k += 1
+            consecutive_attempts = 0
+            if scoreOld > scoreMax:
+                j_list.append(j)
+                k_list.append(k)
+                print(f'{scoreOld},\t{round(time.time() - t1, 2)} sec,\t temp = {round(temp, 2)},\t j={j}, k={k}, \t{len(keyOld)}')
+                keyMax, scoreMax, j, k = keyOld, scoreOld, 0, 0
+        elif AcceptanceFunction(scoreOld, scoreNew, temp, acceptance_multiplier, worse_prob):
+            keyOld, scoreOld = keyNew, scoreNew
+            k += 1
+            consecutive_attempts = 0
         else:
-            attempts_since_last_improvement += 1
+            consecutive_attempts += 1
 
-        if best_value == Ngram_score.score(cipher_text):
-            print("Time before breaking the key: " + str(time.time() - start_time) + "\n")
-            return best_key
+        if consecutive_attempts > max_attempts:
+            keyOld, scoreOld, consecutive_attempts = keyMax, scoreMax, 0
 
-    print(f"Score of the best key: {best_value}")
-    return best_key
+        j += 1
+        if j > 500 or k > 30:
+            j_list.append(j)
+            k_list.append(k)
+            keyOld, scoreOld, j, k = keyMax, scoreMax, 0, 0
+        temp += tempDelta
+        iters += 1
 
+        if iters % 100 == 0:
+            pm = progressMarker(scoreMax)
+            pm = pm + 0.01 * (m - lenk)
+            pm = sign(pm) * max(0.01, abs(pm))
+            tempDelta = tempDeltaBase * (max(m / lenk, 1) + pm * 100)
+            if iters % max(1000, 100 * round((lenk - 6) ** 4 * distance2solution(scoreMax))) == 0:
+                m += 1
+        if iters % 4000 == 0:
+            print(f'\t<{round(scoreMax, 2)}>,\t{round(time.time() - t1, 2)} sec,\t temp = {round(temp, 2)},\t j={j}, k={k},\t pm = {round(pm, 3)},\t m={m}, \t{len(keyOld)}')
+
+    print(f'Obliczano przez {round(time.time() - t1, 2)} sekund,\t(iters={iters},\tm={m})')
+    print(f'j_list.mean = {sum(j_list) / len(j_list)},\t j_list.max = {max(j_list)}')
+    print(f'k_list.mean = {sum(k_list) / len(k_list)},\t jk_list.max = {max(k_list)}')
+    return [scoreMax, keyMax, hill_cipher_decrypt(ct, keyMax)]
 
 if __name__ == "__main__":
     text = "No amount of evidence will ever persuade an idiot. " \
@@ -166,7 +194,18 @@ if __name__ == "__main__":
     key_size = 3
     key_matrix = generate_random_key(key_size)
     cipher_text = hill_cipher_encrypt(plain_text, key_matrix)
-    best_key = hill_climbing_attack(cipher_text, ngram_score)
+
+    best_score = -float('inf')
+    best_result = None
+    for multiplier in [-2,5]:
+        print(f"Testing with acceptance multiplier: {multiplier}")
+        result = SimAnnealing_self_adjusting(cipher_text, key_size, acceptance_multiplier=multiplier, time_limit=60)
+        if result[0] > best_score:
+            best_score = result[0]
+            best_result = result
+        print(f"Result with multiplier {multiplier}: {result[0]}")
+
+    best_key = best_result[1]
 
     print("__________________________________")
     end_time = time.time()
