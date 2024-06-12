@@ -58,14 +58,14 @@ def hill_cipher_decrypt(cipher_text, key_matrix):
 def changeKey(old_key):
     mutation_history = np.zeros_like(old_key)
     new_key = old_key.copy()
-    num_changes = 3
+    num_changes = 1
 
     # Dynamiczne dostosowanie prawdopodobieństw mutacji
     # success_rate = np.mean(mutation_history) / np.max(mutation_history) if np.max(mutation_history) != 0 else 0
     # mutation_probabilities = [prob * (1 - adaptive_factor * success_rate) for prob in mutation_probabilities]
     # mutation_probabilities = [prob / sum(mutation_probabilities) for prob in mutation_probabilities]
 
-    mutation_probabilities = [0.80, 0.10, 0.10]
+    mutation_probabilities = [0.70, 0.00, 0.03, 0.24, 0.03]
 
     for _ in range(num_changes):
         r = random.random()
@@ -74,8 +74,20 @@ def changeKey(old_key):
             new_key[row, col] = np.random.randint(0, 26)
             mutation_history[row, col] += 1
         elif r < sum(mutation_probabilities[:1]):
+            row, col = np.random.randint(0, new_key.shape[0]), np.random.randint(0, new_key.shape[1])
+            new_key[row, col] = np.random.randint(0, 26)
+            mutation_history[row, col] = np.random.randint(26)
+        elif r < sum(mutation_probabilities[:2]):
             row1, row2 = np.random.choice(new_key.shape[0], 2, replace=False)
             new_key[[row1, row2]] = new_key[[row2, row1]]
+        # elif r < sum(mutation_probabilities[:3]):
+        #     row = np.random.choice(new_key.shape[0])
+        #     change = np.random.choice([-2, 2])  # Wybiera -2 lub 2 losowo
+        #     new_key[row] += change
+        elif r < sum(mutation_probabilities[:3]):
+            row = np.random.choice(new_key.shape[0])
+            changes = np.random.choice([-3, -2, -1, -1, 0,0,1,1,2,3], size=new_key.shape[1])  # Wybiera -2 lub 2 losowo dla każdego elementu w wierszu
+            new_key[row] += changes
         else:
             col1, col2 = np.random.choice(new_key.shape[1], 2, replace=False)
             new_key[:, [col1, col2]] = new_key[:, [col2, col1]]
@@ -86,7 +98,7 @@ def changeKey(old_key):
     return old_key
 
 
-def hill_climbing_attack(cipher_text, Ngram_score, time_limit=120, reset_limit=10000):
+def hill_climbing_attack(cipher_text, Ngram_score, time_limit=120, reset_limit=4000):
     old_key = generate_random_key(key_size)
     old_value = Ngram_score.score(hill_cipher_decrypt(cipher_text, old_key))
     start_time = time.time()
@@ -95,6 +107,7 @@ def hill_climbing_attack(cipher_text, Ngram_score, time_limit=120, reset_limit=1
     best_value = old_value
 
     while time.time() - start_time < time_limit:
+
         if attempts_since_last_improvement >= reset_limit:
             old_key = generate_random_key(key_size)
             old_value = Ngram_score.score(hill_cipher_decrypt(cipher_text, old_key))
