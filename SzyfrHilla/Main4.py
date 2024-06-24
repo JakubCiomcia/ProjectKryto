@@ -14,11 +14,17 @@ def char_to_num(c):
 def num_to_char(n):
     return alphabet[n]
 
+def modular_inverse(a, mod):
+    for i in range(1, mod):
+        if (a * i) % mod == 1:
+            return i
+    return None
+
 def generate_random_key(n):
     while True:
         key_matrix = np.random.randint(0, 26, size=(n, n))
-        det = int(np.round(np.linalg.det(key_matrix)))
-        if np.gcd(det, 26) == 1:
+        det = int(np.round(np.linalg.det(key_matrix))) % 26
+        if det != 0 and np.gcd(det, 26) == 1:
             return key_matrix
 
 def hill_cipher_encrypt(plain_text, key_matrix):
@@ -38,8 +44,12 @@ def hill_cipher_decrypt(cipher_text, key_matrix):
     n = key_matrix.shape[0]
     plain_text = ''
     mod = 26
-    key_matrix_mod_inv = Matrix(key_matrix).inv_mod(mod)
-    key_matrix_mod_inv = np.array(key_matrix_mod_inv).astype(int)
+    det = int(np.round(np.linalg.det(key_matrix))) % 26
+    det_inv = modular_inverse(det, mod)
+    if det_inv is None:
+        raise ValueError("The determinant has no modular inverse, the key matrix is not invertible in Z_26.")
+    adjugate = np.round(det * np.linalg.inv(key_matrix)).astype(int) % mod
+    key_matrix_mod_inv = (det_inv * adjugate) % mod
     blocks = [cipher_text[i:i + n] for i in range(0, len(cipher_text), n)]
     for block in blocks:
         block = block.upper()
@@ -77,8 +87,8 @@ def changeKey(old_key):
             col1, col2 = np.random.choice(new_key.shape[1], 2, replace=False)
             new_key[:, [col1, col2]] = new_key[:, [col2, col1]]
 
-    det = int(np.round(np.linalg.det(new_key)))
-    if np.gcd(det, 26) == 1:
+    det = int(np.round(np.linalg.det(new_key))) % 26
+    if det != 0 and np.gcd(det, 26) == 1:
         return new_key
     return old_key
 
